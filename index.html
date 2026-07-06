@@ -114,6 +114,9 @@ svg text{font-family:Arial,Helvetica,sans-serif}
 }
 @media (max-width:720px){.g2,.g3,.campgrid,.costcalc{grid-template-columns:1fr}}
 </style>
+<!-- Used only for a background PDF capture that gets auto-sent to The Builder after reveal();
+     the visible "Save as PDF / print" button still uses window.print(), untouched. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.12.1/html2pdf.bundle.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 </head>
 <body>
 <header>
@@ -418,6 +421,20 @@ document.querySelectorAll('.pillrow').forEach(row=>{
 const fmt$ = n => '$' + Math.round(n).toLocaleString('en-CA');
 const fmtK = n => Math.abs(n)>=1e6 ? '$'+(n/1e6).toFixed(1)+'M' : '$'+Math.round(n/1e3)+'K';
 let lastComputed = null;
+
+// ================= Prospect context (passed in by The Builder) =================
+// The Builder launches this app with ?prospect_id=...&company=... appended to the URL. Read once
+// on load and hold onto it; used later to auto-send the reveal PDF back to the prospect's record.
+let PROSPECT_ID = null, PROSPECT_COMPANY = null;
+(function readProspectContext(){
+  const params = new URLSearchParams(window.location.search);
+  PROSPECT_ID = params.get('prospect_id') || null;
+  PROSPECT_COMPANY = params.get('company') || null;
+  if(PROSPECT_COMPANY){
+    const whoField = document.getElementById('who');
+    if(whoField && !whoField.value) whoField.value = PROSPECT_COMPANY;
+  }
+})();
 // ================= Mountain RANGE art (mirrors the print SVG generator, mountain.py v3) =================
 // Seven distinct peaks, one per Stage of Growth camp, ascending left to right. Each camp is its
 // own complete summit (not a waypoint on one bigger mountain) - reaching camp 3 IS reaching a
@@ -748,6 +765,56 @@ function reveal(){
   document.getElementById('inputs').style.display='none';
   document.getElementById('reveal').style.display='block';
   window.scrollTo(0,0);
+
+  // Background capture -> auto-send to The Builder. Runs on its own; does not touch or depend on
+  // the visible "Save as PDF / print" button. Delayed so the trail-draw and pin-drop animations
+  // finish first, so the captured PDF doesn't freeze mid-animation.
+  setTimeout(captureAndSendToBuilder, 1800);
+}
+
+// ================= Background PDF capture -> auto-send to The Builder =================
+// Only fires when The Builder launched this session with a prospect_id in the URL (see
+// readProspectContext() near the top of the script); otherwise it's a no-op. Uses html2pdf.js
+// (loaded in <head>, used only for this) to render #reveal into an actual PDF Blob in the
+// background, then POSTs it to a same-site Netlify function, which holds the real ingest secret
+// server-side so it never ships to the browser. The visible print/download button is untouched
+// and keeps using window.print().
+let alreadySentToBuilder = false;
+async function captureAndSendToBuilder(){
+  if(!PROSPECT_ID || alreadySentToBuilder) return;
+  if(typeof html2pdf === 'undefined'){ console.error('html2pdf did not load; skipping send to The Builder.'); return; }
+  alreadySentToBuilder = true;
+  try{
+    const el = document.getElementById('reveal');
+    const opt = {
+      margin: 0.4,
+      filename: 'the-climb.pdf',
+      image: {type:'jpeg', quality:0.95},
+      html2canvas: {scale:2, useCORS:true},
+      jsPDF: {unit:'in', format:'letter', orientation:'portrait'}
+    };
+    const pdfBlob = await html2pdf().set(opt).from(el).outputPdf('blob');
+    await sendToTheBuilder(pdfBlob, PROSPECT_ID);
+  }catch(e){
+    console.error('Background PDF capture for The Builder failed:', e);
+  }
+}
+
+async function sendToTheBuilder(pdfBlob, prospectId){
+  if(!prospectId) return; // launched without a prospect — skip
+  const fd = new FormData();
+  fd.append('prospect_id', prospectId);
+  fd.append('file', pdfBlob, 'the-climb.pdf');
+  fd.append('title', 'The Climb — assessment');
+  try{
+    const res = await fetch('/.netlify/functions/climb-ingest', {
+      method: 'POST',
+      body: fd,
+    });
+    if(!res.ok) console.error('Send to The Builder failed:', res.status, await res.text());
+  }catch(e){
+    console.error('Send to The Builder error:', e);
+  }
 }
 
 // ================= Peak zoom: click "here" or "goal" on the mountain to open just that peak =================
