@@ -794,10 +794,23 @@ async function captureAndSendToBuilder(){
         scale: 2,
         useCORS: true,
         // html2canvas renders SCREEN styles, so the @media print rules that
-        // hide the on-screen controls never apply here. Strip them from the
-        // capture clone so the client's PDF is JUST the report — no "Save as
-        // PDF / print", "Download session (JSON)", "Back to inputs", the
-        // print-dialog hint, the inputs form, or the internal backstage panel.
+        // hide the on-screen controls never apply here — without this the
+        // "Save as PDF / print", "Download session (JSON)", "Back to inputs"
+        // buttons and the print-dialog hint end up in the client's PDF.
+        // ignoreElements is html2canvas's first-class exclusion hook: return
+        // true and the element (and its children) is skipped entirely during
+        // render. More reliable than hiding in a clone. We drop every
+        // on-screen-only control so the client PDF is JUST the report.
+        ignoreElements: (el) => {
+          if (!el || !el.classList) return false;
+          return (
+            el.classList.contains('no-print') ||
+            el.id === 'inputs' ||
+            el.id === 'backstage' ||
+            el.id === 'peakModal'
+          );
+        },
+        // Belt-and-suspenders: also hide them in the clone.
         onclone: (doc) => {
           doc
             .querySelectorAll('.no-print, #inputs, #backstage, #peakModal')
@@ -814,7 +827,12 @@ async function captureAndSendToBuilder(){
       // in text, never in the middle of a chart.
       pagebreak: {
         mode: ['css', 'legacy'],
-        avoid: ['#kite', '#mountain', 'svg', 'img', '.camp', '.navybox', '.mountain-card', '.qrbox']
+        // Start the big visual sections at the TOP of a fresh page, so a page
+        // break that began higher up can't slice down into a diagram (this is
+        // what split the 4-Block kite in half).
+        before: ['#campCards', '#kiteCard'],
+        // And never slice through an atomic graphic itself.
+        avoid: ['#kite', '#mountain', 'svg', 'img', '.camp', '.qrbox']
       }
     };
     const pdfBlob = await html2pdf().set(opt).from(el).outputPdf('blob');
