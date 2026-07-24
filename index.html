@@ -521,9 +521,9 @@ function mountainInnerSVG(w, h, hereN, goalN, hereAltitude){
   for(let i=0;i<6;i++){ ridge.push(saddle[i]); ridge.push(summit[i+1]); }
   ridge.push(endShoulder); ridge.push([w,baseY]);
   s += '<polygon points="'+poly(ridge)+'" fill="url(#'+ghero+')"/>';
-
-  const edgePts=[[0,baseY], ...ridge.slice(1,-1), [w,baseY]];
-  s += '<polyline points="'+poly(edgePts)+'" fill="none" stroke="#fff" stroke-width="1" opacity="0.18"/>';
+  // No ridge outline: the solid dark hero range reads cleanly against the
+  // lighter background atmosphere. (A former white edge highlight made the
+  // peaks look outlined and washed out the contrast in the exported PDF.)
 
   // snowcap on every summit, fitted exactly to that peak's own slope (not an independent width) -
   // the cap's base corners sit precisely on the true left/right edge of the mountain at that
@@ -791,7 +791,15 @@ async function captureAndSendToBuilder(){
       filename: 'the-climb.pdf',
       image: {type:'jpeg', quality:0.95},
       html2canvas: {scale:2, useCORS:true},
-      jsPDF: {unit:'in', format:'letter', orientation:'portrait'}
+      jsPDF: {unit:'in', format:'letter', orientation:'portrait'},
+      // Without this, html2pdf slices the rendered canvas at fixed page
+      // heights and cuts straight through cards, the mountain, and the camp
+      // grid — the "page breaks that break the document" Jen flagged. The
+      // visible window.print() path avoids this via @media print rules, but
+      // html2canvas renders screen styles, so those rules never apply here.
+      // 'avoid-all' makes html2pdf insert page breaks only at safe gaps
+      // between elements; 'css'/'legacy' honour any explicit break hints.
+      pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
     };
     const pdfBlob = await html2pdf().set(opt).from(el).outputPdf('blob');
     await sendToTheBuilder(pdfBlob, PROSPECT_ID);
