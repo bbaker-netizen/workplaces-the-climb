@@ -790,16 +790,32 @@ async function captureAndSendToBuilder(){
       margin: 0.4,
       filename: 'the-climb.pdf',
       image: {type:'jpeg', quality:0.95},
-      html2canvas: {scale:2, useCORS:true},
+      html2canvas: {
+        scale: 2,
+        useCORS: true,
+        // html2canvas renders SCREEN styles, so the @media print rules that
+        // hide the on-screen controls never apply here. Strip them from the
+        // capture clone so the client's PDF is JUST the report — no "Save as
+        // PDF / print", "Download session (JSON)", "Back to inputs", the
+        // print-dialog hint, the inputs form, or the internal backstage panel.
+        onclone: (doc) => {
+          doc
+            .querySelectorAll('.no-print, #inputs, #backstage, #peakModal')
+            .forEach((el) => { el.style.display = 'none'; });
+        }
+      },
       jsPDF: {unit:'in', format:'letter', orientation:'portrait'},
-      // Without this, html2pdf slices the rendered canvas at fixed page
-      // heights and cuts straight through cards, the mountain, and the camp
-      // grid — the "page breaks that break the document" Jen flagged. The
-      // visible window.print() path avoids this via @media print rules, but
-      // html2canvas renders screen styles, so those rules never apply here.
-      // 'avoid-all' makes html2pdf insert page breaks only at safe gaps
-      // between elements; 'css'/'legacy' honour any explicit break hints.
-      pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+      // Break the PDF only OUTSIDE the graphics. Avoiding EVERY element
+      // (avoid-all) backfired: it made a tall section — like the 4-Block kite
+      // plus its read-out — unbreakable, so html2pdf sliced it at an arbitrary
+      // height, straight through the diagram. Instead we forbid breaking only
+      // through the atomic visuals (the kite, the mountain, camp tiles, callout
+      // boxes). Prose can break between pages normally, so a page break lands
+      // in text, never in the middle of a chart.
+      pagebreak: {
+        mode: ['css', 'legacy'],
+        avoid: ['#kite', '#mountain', 'svg', 'img', '.camp', '.navybox', '.mountain-card', '.qrbox']
+      }
     };
     const pdfBlob = await html2pdf().set(opt).from(el).outputPdf('blob');
     await sendToTheBuilder(pdfBlob, PROSPECT_ID);
