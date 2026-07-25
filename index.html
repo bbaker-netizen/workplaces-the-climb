@@ -187,7 +187,7 @@ svg text{font-family:Arial,Helvetica,sans-serif}
   </div>
 
   <div style="text-align:center;margin:24px 0">
-    <button class="btn" onclick="reveal()">Show me the mountain →</button>
+    <button class="btn" onclick="reveal()">Show me the results →</button>
     <button class="btn ghost small" onclick="document.getElementById('loadFile').click()">Load previous session</button>
     <input type="file" id="loadFile" accept="application/json" style="display:none" onchange="loadSession(event)">
     <button class="btn ghost small" onclick="toggleBackstage()" title="Coach reference only, never printed">Coach view: stage engine</button>
@@ -660,7 +660,7 @@ function reveal(){
   const tgt   = +document.getElementById('target').value || 0;
   const years = +document.getElementById('years').value || 3;
   const ind   = INDUSTRIES[+document.getElementById('industry').value];
-  if(!rev || !team || !tgt){ alert('Need revenue, team size and target to draw the mountain.'); return; }
+  if(!rev || !team || !tgt){ alert('Need revenue, team size and target to build the results.'); return; }
 
   const rppOwn = rev/team;
   let projRate, benchNote, sourceNote;
