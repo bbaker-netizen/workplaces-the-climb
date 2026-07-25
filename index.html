@@ -105,12 +105,9 @@ svg text{font-family:Arial,Helvetica,sans-serif}
 /* The zoomed single-peak render can be tall and narrow; cap its height so the
    modal always fits the viewport instead of overflowing off the top. */
 #peakModalSvg svg{max-height:62vh;width:auto;max-width:100%;height:auto;display:block;margin:0 auto}
-/* Report order: lead with the scored 4-Block "shape of your business" so the
-   prospect sees what they just scored, THEN the mountain / growth stage. Done
-   with flex order (not moving markup) so the JS that fills each card is
-   untouched; html2canvas honours the visual order in the PDF too. */
-#reveal{display:flex;flex-direction:column}
-#kiteCard{order:-1}
+/* Report order (kite first, then mountain) is done structurally in reveal()
+   by moving the node — a CSS `order` reorder was defeated by the inline
+   display:block reveal() sets. */
 .mtn-modal-close{position:absolute;top:8px;right:12px;background:none;border:none;font-size:28px;line-height:1;color:var(--ink-3);cursor:pointer}
 .mtn-modal-title{font-size:17px;font-weight:bold;color:var(--navy);margin-bottom:10px;text-align:center}
 #backstage{display:none;background:var(--navy-900);color:var(--cream-50);border-radius:12px;padding:20px;margin-top:18px;font-size:12.5px}
@@ -495,7 +492,7 @@ function mountainDetailSVG(w, h, hereN, goalN, hereAltitude, focusN){
 
 function mountainInnerSVG(w, h, hereN, goalN, hereAltitude){
   mtnUid++;
-  const gback='gb'+mtnUid, gmid='gm'+mtnUid, ghero='gh'+mtnUid, gglow='gg'+mtnUid;
+  const gback='gb'+mtnUid, gmid='gm'+mtnUid, ghero='gh'+mtnUid, gglow='gg'+mtnUid, psh='psh'+mtnUid;
   const baseY = h-38, topY = h*0.17, usableH = baseY-topY;
   let s = '';
   s += '<defs>'
@@ -507,6 +504,10 @@ function mountainInnerSVG(w, h, hereN, goalN, hereAltitude){
      + '<stop offset="0" stop-color="#1B4A77"/><stop offset="1" stop-color="#0C2740"/></linearGradient>'
      + '<radialGradient id="'+gglow+'" cx="0.5" cy="0.5" r="0.5">'
      + '<stop offset="0" stop-color="#EFE6D7" stop-opacity="0.5"/><stop offset="1" stop-color="#EFE6D7" stop-opacity="0"/></radialGradient>'
+     // Soft shadow so the hero peaks read with depth against the background —
+     // replaces the old drawn outline (Bruce: shadow, not an outline).
+     + '<filter id="'+psh+'" x="-20%" y="-20%" width="140%" height="140%">'
+     + '<feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#0C2740" flood-opacity="0.38"/></filter>'
      + '</defs>';
 
   const poly = pts => pts.map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ');
@@ -536,7 +537,7 @@ function mountainInnerSVG(w, h, hereN, goalN, hereAltitude){
   const ridge=[[0,baseY],startShoulder,summit[0]];
   for(let i=0;i<6;i++){ ridge.push(saddle[i]); ridge.push(summit[i+1]); }
   ridge.push(endShoulder); ridge.push([w,baseY]);
-  s += '<polygon points="'+poly(ridge)+'" fill="url(#'+ghero+')"/>';
+  s += '<polygon points="'+poly(ridge)+'" fill="url(#'+ghero+')" filter="url(#'+psh+')"/>';
   // No ridge outline: the solid dark hero range reads cleanly against the
   // lighter background atmosphere. (A former white edge highlight made the
   // peaks look outlined and washed out the contrast in the exported PDF.)
@@ -561,7 +562,10 @@ function mountainInnerSVG(w, h, hereN, goalN, hereAltitude){
   const trailPts=[summit[0]];
   for(let i=0;i<6;i++){ trailPts.push(saddle[i]); trailPts.push(summit[i+1]); }
   const pathD='M '+trailPts.map(p=>p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' L ');
-  s += '<path class="trailpath" d="'+pathD+'" fill="none" stroke="#EFE6D7" stroke-width="2.3" stroke-dasharray="1,6.5" stroke-linecap="round" opacity="0.85"/>';
+  // Trail outline removed — it read as a white outline "creeping" up the peaks
+  // on load. The peaks now get depth from the drop-shadow filter instead.
+  // (pathD is still computed above in case the hiker placement references it.)
+  void pathD;
 
   // a small hiker figure standing at "you are here" - makes the trail feel walked
   const hikerSVG = (px,py,faceRight) => {
@@ -781,6 +785,15 @@ function reveal(){
 
   document.getElementById('inputs').style.display='none';
   document.getElementById('reveal').style.display='block';
+  // Lead with the 4-Block "shape of your business" (what the prospect just
+  // scored), THEN the mountain. Done by actually moving the node — a CSS
+  // `order` reorder was silently defeated by the inline display:block above.
+  (function(){
+    const rv=document.getElementById('reveal');
+    const kite=document.getElementById('kiteCard');
+    const mtn=rv&&rv.querySelector('.mountain-card');
+    if(rv&&kite&&mtn) rv.insertBefore(kite, mtn);
+  })();
   window.scrollTo(0,0);
 
   // Background capture -> auto-send to The Builder. Runs on its own; does not touch or depend on
