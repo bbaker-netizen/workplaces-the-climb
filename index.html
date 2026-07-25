@@ -66,6 +66,13 @@ input:focus,select:focus{outline:2px solid var(--blue-100);border-color:var(--bl
 .winbox{background:#eef6f0;border-radius:8px;padding:10px 12px;font-size:12.5px;color:#1f5f3d}
 .costbox{background:#fbeceb;border-radius:8px;padding:10px 12px;font-size:12.5px;color:#7a2b21}
 .boxlabel{font-size:10px;letter-spacing:.08em;text-transform:uppercase;font-weight:bold;display:block;margin-bottom:3px}
+/* The per-camp "asks" list was an unlabelled <ul> dumped under the two boxes,
+   so it read as orphaned. Give it the same small-caps label as the boxes and
+   tidy spacing so it clearly belongs to the camp. */
+.camp .asks{margin-top:12px}
+.camp .asks .boxlabel{color:var(--ink-3)}
+.camp .asks ul{margin:4px 0 0 18px;font-size:14px;color:var(--ink-2)}
+.camp .asks li{margin:3px 0}
 .tag{display:inline-block;font-size:10px;letter-spacing:.1em;text-transform:uppercase;padding:3px 10px;border-radius:999px;color:#fff;margin-left:8px;vertical-align:middle}
 .tag.here{background:var(--danger)} .tag.goal{background:var(--gold)}
 .foot{font-size:11px;color:var(--ink-3);text-align:center;margin-top:26px}
@@ -728,7 +735,8 @@ function reveal(){
         + '<div class="winbox"><span class="boxlabel">What you win here</span>'+st.win+'</div>'
         + '<div class="costbox"><span class="boxlabel">What it costs to stall here</span>'+st.cost+'</div>'
         + '</div>'
-        + '<ul style="margin:10px 0 0 18px;font-size:14px;color:var(--ink-2)">'+st.asks.map(a=>'<li>'+a+'</li>').join('')+'</ul></div>';
+        + '<div class="asks"><span class="boxlabel">What this climb asks of you here</span>'
+        + '<ul>'+st.asks.map(a=>'<li>'+a+'</li>').join('')+'</ul></div></div>';
   }
   document.getElementById('camps').innerHTML = cc2;
 
