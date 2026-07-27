@@ -823,6 +823,17 @@ async function captureAndSendToBuilder(){
       html2canvas: {
         scale: 2,
         useCORS: true,
+        // Capture at a FIXED layout width. html2canvas lays the page out at
+        // the live window size, so without this the client's PDF depended on
+        // how wide their browser happened to be when they hit reveal — a
+        // narrow window collapsed the .g2/.campgrid grids to one column (the
+        // max-width:720px rule), which lengthened every section and shoved
+        // the diagrams into different page positions each time. That is the
+        // "all over the show": not random, just a different viewport.
+        // Pinning it makes the export reproducible.
+        windowWidth: 1200,
+        scrollX: 0,
+        scrollY: 0,
         // html2canvas renders SCREEN styles, so the @media print rules that
         // hide the on-screen controls never apply here — without this the
         // "Save as PDF / print", "Download session (JSON)", "Back to inputs"
@@ -845,6 +856,37 @@ async function captureAndSendToBuilder(){
           doc
             .querySelectorAll('.no-print, #inputs, #backstage, #peakModal')
             .forEach((el) => { el.style.display = 'none'; });
+
+          // Nothing we refuse to break may be TALLER THAN A PAGE.
+          //
+          // This is the blank-pages bug. html2pdf honours "don't split this"
+          // by pushing the element onto the next page — but an element that
+          // can't fit on ANY page gets pushed regardless, leaving the rest of
+          // the previous page empty and then overflowing anyway. The mountain
+          // card and the 4-Block kite are exactly that: at scale 2 on a wide
+          // capture they run past a full letter page, so each one bought a
+          // near-blank page ahead of it.
+          //
+          // Letter is 11in tall, margins take 0.8in, so a page holds ~10.2in
+          // of content = ~979px at 96dpi. Cap the two big visuals below that
+          // with room to spare; they scale down rather than get sliced.
+          const PAGE_PX = 900;
+          doc.querySelectorAll('#mountain, .mountain-wrap, #kite').forEach((el) => {
+            el.style.maxHeight = PAGE_PX + 'px';
+            // Keep the aspect ratio while the height is constrained.
+            el.style.height = 'auto';
+            const svg = el.tagName === 'svg' ? el : el.querySelector('svg');
+            if (svg) {
+              svg.style.maxHeight = PAGE_PX + 'px';
+              svg.style.height = 'auto';
+              svg.style.width = '100%';
+            }
+          });
+          // The mountain backdrop is a large base64 PNG; same rule applies.
+          doc.querySelectorAll('.mountain-logo').forEach((img) => {
+            img.style.maxHeight = PAGE_PX + 'px';
+            img.style.height = 'auto';
+          });
         }
       },
       jsPDF: {unit:'in', format:'letter', orientation:'portrait'},
@@ -857,12 +899,20 @@ async function captureAndSendToBuilder(){
       // in text, never in the middle of a chart.
       pagebreak: {
         mode: ['css', 'legacy'],
-        // Start the big visual sections at the TOP of a fresh page, so a page
-        // break that began higher up can't slice down into a diagram (this is
-        // what split the 4-Block kite in half).
-        before: ['#campCards', '#kiteCard'],
-        // And never slice through an atomic graphic itself.
-        avoid: ['#kite', '#mountain', 'svg', 'img', '.camp', '.qrbox']
+        // No forced `before` breaks any more. Forcing #campCards and
+        // #kiteCard to start a fresh page meant that whenever the preceding
+        // section happened to end near the TOP of a page, the rest of that
+        // page was thrown away — two forced breaks, up to two near-empty
+        // pages, every time. Now that the diagrams are capped to fit
+        // (see onclone above), `avoid` alone keeps them whole and only
+        // spends a break when one is actually needed.
+        //
+        // `avoid` no longer lists bare `svg` and `img` either. Those matched
+        // EVERY graphic on the page — the full-width mountain backdrop, the
+        // QR code, every inline icon — and any of them that couldn't fit a
+        // page forced a push with blank space behind it. It now lists only
+        // the blocks that are genuinely atomic AND known to fit.
+        avoid: ['#kite', '#mountain', '.camp', '.qrbox']
       }
     };
     const pdfBlob = await html2pdf().set(opt).from(el).outputPdf('blob');
